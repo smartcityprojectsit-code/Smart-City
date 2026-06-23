@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart City Dashboard</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=Space+Grotesk:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/particles.js/2.0.0/particles.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="particles-js"></div>
+    <div class="ambient-glow">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+        <div class="orb orb-4"></div>
+    </div>
+
+    <div id="globalLoader" class="glass-loader">
+        <div class="loader-content">
+            <div class="quantum-spinner"></div>
+            <h1 class="glitch-text" data-text="NEXCITY">Smart City</h1>
+            <p id="loaderStatus" class="tech-font">Establishing WebSocket connection...</p>
+            <div class="loading-bar-container"><div class="loading-bar" id="loaderProgress"></div></div>
+        </div>
+    </div>
+
+    <div id="authGate" class="hidden">
+        <div class="auth-card bento-glass form-entry">
+            <div class="auth-icon-wrap">
+                <i class="ri-fingerprint-2-line neonic-icon"></i>
+            </div>
+            <h2>Auth Gateway</h2>
+            <p class="subtitle text-muted mt-1">End-to-end encrypted civic portal.</p>
+            
+            <button class="btn-subtle glow-hover mt-3" id="googleSignInBtn">
+                <img src="https://www.svgrepo.com/show/303108/google-icon-logo.svg" alt="G" class="g-icon"> 
+                Authenticate Identity
+            </button>
+            <div id="authErrorDisplay" class="error-text mt-2"></div>
+        </div>
+    </div>
+
+    <div id="mainApp" class="app-layout hidden">
+        
+        <nav id="adminSidebar" class="sidebar bento-glass">
+            <div class="brand-logo gs-reveal">
+                <i class="ri-box-3-line spin-slow"></i>
+            </div>
+            
+            <ul class="nav-menu">
+                <li class="nav-item active gs-reveal" data-target="dashboardTab" title="Nexus Dashboard">
+                    <i class="ri-dashboard-line"></i>
+                </li>
+                <li class="nav-item gs-reveal" data-target="commsTab" title="Encrypted Comms">
+                    <i class="ri-chat-3-line"></i>
+                    <span class="notification-dot" id="unreadBadge"></span>
+                </li>
+                <li class="nav-item gs-reveal" data-target="logsTab" title="Audit Logs">
+                    <i class="ri-shield-keyhole-line"></i>
+                </li>
+                <li class="nav-item gs-reveal" data-target="settingsTab" title="System Configuration">
+                    <i class="ri-settings-4-line"></i>
+                </li>
+            </ul>
+
+            <div class="bottom-menu">
+                <div class="user-profile gs-reveal">
+                    <img id="navUserAvatar" src="" alt="User" class="avatar-glass">
+                </div>
+                <div class="nav-item text-danger gs-reveal" id="logoutBtn" title="Terminate Session">
+                    <i class="ri-logout-circle-r-line"></i>
+                </div>
+            </div>
+        </nav>
+
+        <main id="contentWrapper" class="content-area">
+            
+            <header class="app-header bento-glass">
+                <div class="header-titles">
+                    <h1 id="viewTitle">Smart City <span>Dashboard</span></h1>
+                    <div class="system-status tech-font">
+                        <i class="ri-wifi-line text-green" id="wsStatusIcon"></i> <span id="wsStatusText" class="text-green">WS Connected</span>
+                        <i class="ri-calendar-line text-blue ml-2"></i> <span id="currentDateString">--</span>
+                        <i class="ri-time-line text-blue ml-2"></i> <span id="currentTimeString">--</span>
+                    </div>
+                </div>
+                
+                <div class="header-actions">
+                    <div class="alert-information">
+                        <i class="ri-alert-line"></i>
+                        <span class="alert-txt" id="alertText">
+                            No Alerts
+                        </span>
+                    </div>
+                    <span class="role-badge tech-font" id="userRoleBadge">Authenticating...</span>
+                </div>
+            </header>
+
+            <section id="dashboardTab" class="tab-pane active fade-enter scrollbar-hide">
+                <div class="bento-grid">
+                    
+                    <div class="bento-box col-span-2 row-span-2 bento-glass widget-entrance flex-column">
+                        <div class="bento-header w-100 flex-between mb-1">
+                            <h3 class="flex-align gap-2"><i class="ri-windy-line neonic-blue"></i> Wind Power Generation</h3>
+                            <div class="live-pulse">LIVE</div>
+                        </div>
+                        <div class="chart-parent-wrapper mt-2">
+                            <canvas id="windmillChart" class="absolute-fill"></canvas>
+                        </div>
+                        <div class="flex-between w-100 mt-2 gap-2">
+                            <div class="w-100 flex-between bento-inset">
+                                <span class="text-sm flex-align"><i class="ri-flashlight-line text-blue mr-1"></i> Voltage</span>
+                                <span class="tech-font text-blue" id="windVoltage">0.00 V</span>
+                            </div>
+                            <div class="w-100 flex-between bento-inset">
+                                <span class="text-sm flex-align"><i class="ri-pulse-line text-green mr-1"></i> Current</span>
+                                <span class="tech-font text-green" id="windCurrent">0.00 A</span>
+                            </div>
+                            <div class="w-100 flex-between bento-inset">
+                                <span class="text-sm flex-align"><i class="ri-power-line text-purple mr-1"></i> Power</span>
+                                <span class="tech-font text-purple" id="windPower">0.00 W</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bento-box col-span-2 row-span-1 bento-glass widget-entrance flex-column">
+                        <div class="bento-header w-100 flex-between mb-1">
+                            <h3 class="flex-align gap-2"><i class="ri-leaf-line neonic-green"></i> Air Quality Index</h3>
+                            <div class="flex-align gap-2">
+                                <span class="badge bg-green-subtle text-green tech-font text-xs px-2" id="aqiSoc1Val">MQ2-1 (P34): --</span>
+                                <span class="badge bg-blue-subtle text-blue tech-font text-xs px-2" id="aqiSoc2Val">MQ2-2 (P35): --</span>
+                            </div>
+                        </div>
+                        <div class="chart-parent-wrapper mt-2">
+                            <canvas id="aqiChart" class="absolute-fill"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="bento-box col-span-2 row-span-1 bento-glass widget-entrance">
+                        <div class="bento-header w-100 flex-center mb-2">
+                            <h3>Parking Status</h3>
+                        </div>
+                        <div class="parking-grid-compact">
+                            <div class="park-slot-mini bg-green-subtle border-green" id="slot-s1">
+                                <div class="flex-column">
+                                    <i class="ri-car-fill text-green text-lg"></i>
+                                    <span class="pin-badge mt-1">Pin 14</span>
+                                </div>
+                                <div class="flex-column align-end">
+                                    <h4 class="tech-font m-0 text-sm">S1</h4>
+                                    <span class="text-xs text-green" id="status-s1">Empty</span>
+                                </div>
+                            </div>
+                            <div class="park-slot-mini bg-green-subtle border-green" id="slot-s2">
+                                <div class="flex-column">
+                                    <i class="ri-car-fill text-green text-lg"></i>
+                                    <span class="pin-badge mt-1">Pin 12</span>
+                                </div>
+                                <div class="flex-column align-end">
+                                    <h4 class="tech-font m-0 text-sm">S2</h4>
+                                    <span class="text-xs text-green" id="status-s2">Empty</span>
+                                </div>
+                            </div>
+                            <div class="park-slot-mini bg-green-subtle border-green" id="slot-s3">
+                                <div class="flex-column">
+                                    <i class="ri-car-fill text-green text-lg"></i>
+                                    <span class="pin-badge mt-1">Pin 13</span>
+                                </div>
+                                <div class="flex-column align-end">
+                                    <h4 class="tech-font m-0 text-sm">S3</h4>
+                                    <span class="text-xs text-green" id="status-s3">Empty</span>
+                                </div>
+                            </div>
+                            <div class="park-slot-mini bg-green-subtle border-green" id="slot-s4">
+                                <div class="flex-column">
+                                    <i class="ri-car-fill text-green text-lg"></i>
+                                    <span class="pin-badge mt-1">Pin 23</span>
+                                </div>
+                                <div class="flex-column align-end">
+                                    <h4 class="tech-font m-0 text-sm">S4</h4>
+                                    <span class="text-xs text-green" id="status-s4">Empty</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bento-box col-span-1 row-span-1 bento-glass widget-entrance flex-column relative overflow-hidden">
+                        <div class="bento-header w-100 flex-between mb-1 z-10">
+                            <h3>Street Light</h3>
+                            <span class="pin-badge">LDR: P32 | LED: P19</span>
+                        </div>
+                        <div class="flex-column-center flex-grow z-10">
+                            <i class="ri-lightbulb-flash-line neonic-green text-huge" id="streetLightIcon"></i>
+                            <h2 class="tech-font text-green mt-1" id="streetLightStatus">ON</h2>
+                            <p class="text-xs text-muted text-center mt-1" id="ldrStatus">LDR Reading: --</p>
+                        </div>
+                        <div class="bg-flare hidden" id="streetlightFlare"></div>
+                    </div>
+
+                    <div class="bento-box col-span-1 row-span-1 bento-glass widget-entrance flex-column">
+                        <div class="bento-header w-100 flex-between mb-1">
+                            <h3>Dustbins (IR)</h3>
+                        </div>
+                        <div class="flex-column flex-grow gap-3 justify-center">
+                            <div class="w-100 flex-between align-center bento-inset">
+                                <div class="flex-column">
+                                    <span class="text-sm"><i class="ri-delete-bin-5-line text-blue"></i> Bin 1</span>
+                                    <span class="pin-badge mt-1">Pin 25</span>
+                                </div>
+                                <span class="tech-font text-green text-lg" id="dustbin1Status">EMPTY</span>
+                            </div>
+                            <div class="w-100 flex-between align-center bento-inset">
+                                <div class="flex-column">
+                                    <span class="text-sm"><i class="ri-delete-bin-5-line text-purple"></i> Bin 2</span>
+                                    <span class="pin-badge mt-1">Pin 33</span>
+                                </div>
+                                <span class="tech-font text-green text-lg" id="dustbin2Status">EMPTY</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bento-box col-span-2 row-span-1 bento-glass widget-entrance">
+                        <div class="bento-header w-100 flex-between mb-2">
+                            <h3 class="text-red"><i class="ri-alarm-warning-line neonic-red"></i> Emergency & Safety System</h3>
+                        </div>
+                        <div class="parking-grid-compact">
+                            <div class="park-slot-mini bg-green-subtle border-green" id="fireCard1">
+                                <div class="flex-column">
+                                    <i class="ri-fire-line text-green text-lg" id="fireIcon1"></i>
+                                    <span class="pin-badge mt-1">Pin 27</span>
+                                </div>
+                                <div class="flex-column align-end">
+                                    <h4 class="tech-font m-0 text-sm">Fire Sensor 1</h4>
+                                    <span class="text-xs text-green" id="fireStatus1">SAFE</span>
+                                </div>
+                            </div>
+                            <div class="park-slot-mini bg-green-subtle border-green" id="fireCard2">
+                                <div class="flex-column">
+                                    <i class="ri-fire-line text-green text-lg" id="fireIcon2"></i>
+                                    <span class="pin-badge mt-1">Pin 28</span>
+                                </div>
+                                <div class="flex-column align-end">
+                                    <h4 class="tech-font m-0 text-sm">Fire Sensor 2</h4>
+                                    <span class="text-xs text-green" id="fireStatus2">SAFE</span>
+                                </div>
+                            </div>
+                            <div class="park-slot-mini bg-blue-subtle border-blue flex-between">
+                                <div class="flex-column">
+                                    <i class="ri-volume-up-line text-blue text-lg"></i>
+                                    <span class="pin-badge mt-1">Pin 18</span>
+                                </div>
+                                <div class="flex-column align-end gap-2">
+                                    <h4 class="tech-font m-0 text-sm">Buzzer</h4>
+                                    <label class="subtle-switch"><input type="checkbox" id="toggleBuzzer"><span class="slider"></span></label>
+                                </div>
+                            </div>
+                            <div class="park-slot-mini bg-purple-subtle border-purple flex-between">
+                                <div class="flex-column">
+                                    <i class="ri-base-station-line text-purple text-lg"></i>
+                                    <span class="pin-badge mt-1">Pin 5</span>
+                                </div>
+                                <div class="flex-column align-end gap-2">
+                                    <h4 class="tech-font m-0 text-sm">Main Relay</h4>
+                                    <label class="subtle-switch"><input type="checkbox" id="toggleRelay"><span class="slider"></span></label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
+            <section id="commsTab" class="tab-pane fade-enter">
+                <div class="bento-glass full-height flex-column relative">
+                    <div class="chat-header bento-inset-bottom">
+                        <div>
+                            <h3 class="flex-align text-gradient-blue"><i class="ri-chat-shield-line mr-1"></i> Civic Nexus Channel</h3>
+                            <p class="text-xs text-muted tech-font mt-1">End-to-End Encrypted via Post-Quantum RSA-4096</p>
+                        </div>
+                        <div class="active-users tech-font text-sm" id="activeUsersCounter">
+                            <i class="ri-shield-user-line text-green"></i> Link Active
+                        </div>
+                    </div>
+
+                    <div class="chat-history scrollbar-cyber" id="chatWindow">
+                        <div class="system-bubble bento-inset text-center text-xs text-muted mt-2">
+                            <i class="ri-lock-line text-purple"></i> Handshake verified. Images are processed via Base64 string encoding locally before transmission.
+                        </div>
+                    </div>
+
+                    <div id="imagePreviewContainer" class="hidden image-preview-bar bento-inset">
+                        <img id="imgPreview" src="" alt="preview">
+                        <div class="flex-column ml-2">
+                            <span class="text-xs tech-font text-blue">Base64 Encoded</span>
+                            <span class="text-xs text-muted" id="base64Size">0 KB</span>
+                        </div>
+                        <button id="cancelImgBtn" class="btn-icon ml-auto"><i class="ri-close-line"></i></button>
+                    </div>
+
+                    <div class="chat-input-area bento-inset-top">
+                        <input type="file" id="base64ImageInput" accept="image/jpeg, image/png, image/webp" hidden>
+                        <button class="btn-icon hover-blue" id="attachBtn" title="Upload Base64 Intel">
+                            <i class="ri-image-add-line"></i>
+                        </button>
+                        
+                        <div class="input-wrapper ml-2">
+                            <input type="text" id="chatMessageInput" placeholder="Transmit intel payload..." class="subtle-input tech-font">
+                        </div>
+                        
+                        <button class="btn-subtle ml-2" id="sendMessageBtn">
+                            <i class="ri-send-plane-line"></i>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <section id="logsTab" class="tab-pane fade-enter">
+                <div class="bento-glass full-height flex-column">
+                    <div class="bento-header bento-inset-bottom pb-2">
+                        <div style="padding: 20px;">
+                            <h3><i class="ri-shield-keyhole-line neonic-green"></i> Zero-Trust Audit Logs</h3>
+                            <p class="text-xs text-muted tech-font mt-1">Immutable ledger of system and admin events.</p>
+                        </div>
+                        <button class="btn-subtle" id="btnEncryptedBackup"><i class="ri-lock-password-line"></i> Export Encrypted Backup (JSON)</button>
+                    </div>
+                    
+                    <div class="table-container mt-2 scrollbar-cyber flex-grow">
+                        <table class="subtle-table w-100 text-left">
+                            <thead>
+                                <tr>
+                                    <th>TIMESTAMP</th>
+                                    <th>ACTOR / NODE</th>
+                                    <th>EVENT CLASS</th>
+                                    <th>PAYLOAD</th>
+                                    <th>TRUST LEVEL</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dbLogTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="settingsTab" class="tab-pane fade-enter scrollbar-hide">
+                <div class="bento-grid">
+                    
+                    <div class="bento-box col-span-2 row-span-2 bento-glass widget-entrance">
+                        <div class="bento-header pb-2 bento-inset-bottom">
+                            <h3><i class="ri-robot-2-line neonic-blue"></i> AI & Automation Rules</h3>
+                        </div>
+                        <div class="settings-list mt-2">
+                            <div class="setting-item">
+                                <div>
+                                    <h4 class="text-sm">Predictive Load Shedding</h4>
+                                    <p class="text-xs text-muted mt-1">Auto-route grid power based on AI weather forecasts.</p>
+                                </div>
+                                <label class="subtle-switch"><input type="checkbox" id="toggleLoadShedding" checked><span class="slider"></span></label>
+                            </div>
+                            <div class="setting-item mt-3">
+                                <div>
+                                    <h4 class="text-sm">Automated UAV Dispatch</h4>
+                                    <p class="text-xs text-muted mt-1">Deploy inspection drones automatically upon node failure or fire alerts.</p>
+                                </div>
+                                <label class="subtle-switch"><input type="checkbox" id="toggleAutoDrone" checked><span class="slider"></span></label>
+                            </div>
+                            <div class="setting-item mt-3">
+                                <div>
+                                    <h4 class="text-sm">Auto-Buzzer on Fire Detection</h4>
+                                    <p class="text-xs text-muted mt-1">Engage buzzer automatically if Fire 1 or 2 sensors detect anomalous heat/flame.</p>
+                                </div>
+                                <label class="subtle-switch"><input type="checkbox" id="toggleAutoBuzzer" checked><span class="slider"></span></label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bento-box col-span-2 row-span-1 bento-glass widget-entrance">
+                        <div class="bento-header pb-2 bento-inset-bottom">
+                            <h3><i class="ri-dashboard-3-line neonic-purple"></i> Connection Parameters</h3>
+                        </div>
+                        <div class="settings-list mt-2">
+                            <div class="setting-item align-start flex-column gap-2">
+                                <div class="w-100 flex-between">
+                                    <h4 class="text-sm">WebSocket Address</h4>
+                                </div>
+                                <div class="input-wrapper w-100 mt-1">
+                                    <input type="text" id="wsAddressInput" value="ws://10.149.39.90:81" class="subtle-input tech-font">
+                                </div>
+                                <button class="btn-subtle w-100 mt-2" id="btnReconnectWs">Reconnect WebSocket</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bento-box col-span-2 row-span-1 bento-glass widget-entrance">
+                        <div class="bento-header pb-2 bento-inset-bottom">
+                            <h3><i class="ri-macbook-line neonic-green"></i> Interface Configuration</h3>
+                        </div>
+                        <div class="settings-list mt-2">
+                            <div class="setting-item">
+                                <div>
+                                    <h4 class="text-sm">Stealth Mode (Low Emission UI)</h4>
+                                    <p class="text-xs text-muted mt-1">Dims ambient orbs and disables neonic blooming to save rendering power.</p>
+                                </div>
+                                <label class="subtle-switch"><input type="checkbox" id="toggleStealthMode"><span class="slider"></span></label>
+                            </div>
+                            <div class="setting-item mt-3">
+                                <div>
+                                    <h4 class="text-sm">Haptic Audio Feedback</h4>
+                                    <p class="text-xs text-muted mt-1">Play subtle tech sounds on incoming comms and alert triggers.</p>
+                                </div>
+                                <label class="subtle-switch"><input type="checkbox" id="toggleAudio" checked><span class="slider"></span></label>
+                            </div>
+                            <button class="btn-danger-subtle w-100 mt-3" id="btnPurgeLogs">
+                                <i class="ri-delete-bin-line"></i> Purge Local Application Cache
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
