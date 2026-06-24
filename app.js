@@ -146,6 +146,7 @@ auth.onAuthStateChanged(user => {
 
                                 if (userIsAdmin) {
                                     initCharts();
+                                    autoFetchESP32IP();
                                     connectWebSocket();
                                     startMockWindmill();
                                 }
@@ -293,27 +294,28 @@ function startMockWindmill() {
 
     }, 2000);
 }
-
-function connectWebSocket() {
-    const input = document.getElementById('wsAddressInput');
-    
-    if (input) {
-        if (!input.value) {
-            // If input is empty, fill it with the last saved address
-            input.value = wsAddress;
-        } else {
-            // If user typed a new address, capture it
-            let targetAddr = input.value.trim();
-            if (!targetAddr.startsWith("ws://") && !targetAddr.startsWith("wss://")) {
-                targetAddr = "ws://" + targetAddr;
-            }
-            wsAddress = targetAddr;
+async function autoFetchESP32IP() {
+    try {
+        const response = await fetch("https://smartcity-cda59-default-rtdb.firebaseio.com/device/ip.json");
+        if (!response.ok) throw new Error("Database offline");
+        
+        const ip = await response.json();
+        if (ip) {
+            console.log("Target ESP32 IP discovered dynamically:", ip);
+            wsAddress = "ws://" + ip + ":81";
+            
+            // Sync with your UI text input so you can visually see the active IP
+            const input = document.getElementById('wsAddressInput');
+            if (input) input.value = wsAddress;
         }
+    } catch (error) {
+        console.error("Auto-IP discovery failed, falling back to local memory:", error);
+    } finally {
+        // Proceed to connect using the fetched IP address
+        connectWebSocket();
     }
-
-    // Save it so it persists across page refreshes
-    localStorage.setItem("lastWsAddress", wsAddress);
-
+}
+function connectWebSocket() {
     const wsStatusIcon = document.getElementById('wsStatusIcon');
     const wsStatusText = document.getElementById('wsStatusText');
 
@@ -327,8 +329,8 @@ function connectWebSocket() {
 
         ws.onopen = function() {
             if(wsStatusIcon) wsStatusIcon.className = "ri-wifi-line text-green";
-            if(wsStatusText) { wsStatusText.innerText = "WS Connected"; wsStatusText.className = "text-green"; }
-            logSystemEvent("SYS_NET", "WebSocket Connected to " + wsAddress, "SYS_ROOT", "HIGH");
+            if(wsStatusText) { wsStatusText.innerText = "Connected Automatically"; wsStatusText.className = "text-green"; }
+            logSystemEvent("SYS_NET", "WebSocket link active on " + wsAddress, "SYS_ROOT", "HIGH");
         };
 
         ws.onmessage = function(event) {
@@ -340,13 +342,12 @@ function connectWebSocket() {
 
         ws.onclose = function() {
             if(wsStatusIcon) wsStatusIcon.className = "ri-wifi-off-line text-red";
-            if(wsStatusText) { wsStatusText.innerText = "WS Disconnected"; wsStatusText.className = "text-red"; }
-            logSystemEvent("SYS_NET", "WebSocket Connection Lost", "SYS_ROOT", "HIGH");
-            setTimeout(connectWebSocket, 5000); 
+            if(wsStatusText) { wsStatusText.innerText = "Disconnected"; wsStatusText.className = "text-red"; }
+            setTimeout(autoFetchESP32IP, 5000); 
         };
 
     } catch(e) {
-        console.error("WebSocket initialization failed:", e);
+        console.error("WebSocket startup fault:", e);
     }
 }
 
